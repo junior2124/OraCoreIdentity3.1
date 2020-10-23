@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using OraCoreIdentity3._1.Models;
 using OraCoreIdentity3._1.Data;
+using Microsoft.AspNetCore.Authorization;
 
 namespace OraCoreIdentity3._1.Controllers
 {
@@ -27,6 +28,7 @@ namespace OraCoreIdentity3._1.Controllers
             return View();
         }
 
+        [Authorize(Roles ="Administrator")]
         public IActionResult Privacy()
         {
             var addresses = _context.COMPANYADDRESS.ToList();
