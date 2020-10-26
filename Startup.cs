@@ -14,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OraCoreIdentity3._1.Models;
 using OraCoreIdentity3._1.Services;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace OraCoreIdentity3._1
 {
@@ -40,6 +42,22 @@ namespace OraCoreIdentity3._1
 
             services.AddControllersWithViews();
             services.AddRazorPages();
+
+            var issuer = Configuration["Tokens:Issuer"];
+            var audience = Configuration["Tokens:Audience"];
+            var key = Configuration["Tokens:Key"];
+
+            services.AddAuthentication().AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                {
+                    ValidIssuer = issuer,
+                    ValidAudience = audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key))
+                };
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

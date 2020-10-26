@@ -1,15 +1,20 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 using OraCoreIdentity3._1.Models;
 using OraCoreIdentity3._1.Models.AccountViewModels;
 using OraCoreIdentity3._1.Services;
@@ -23,17 +28,20 @@ namespace OraCoreIdentity3._1.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IEmailSender _emailSender;
+        private IConfiguration _configuration;
         private readonly ILogger _logger;
 
         public AccountController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             IEmailSender emailSender,
+            IConfiguration configuration,
             ILogger<AccountController> logger)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _emailSender = emailSender;
+            _configuration = configuration;
             _logger = logger;
         }
 
@@ -85,6 +93,42 @@ namespace OraCoreIdentity3._1.Controllers
 
             // If we got this far, something failed, redisplay form
             return View(model);
+        }
+
+        [AllowAnonymous]
+        [HttpPost]
+        public async Task<ActionResult> Auth(LoginViewModel model)
+        {
+            var issuer = _configuration["Tokens:Issuer"];
+            var audience = _configuration["Tokens:Audience"];
+            var key = _configuration["Tokens:Key"];
+
+            if (ModelState.IsValid)
+            {
+                var signinResult = await _signInManager.PasswordSignInAsync(model.Email, model.Password, false, false);
+
+                if(signinResult.Succeeded)
+                {
+                    var user = await _userManager.FindByEmailAsync(model.Email);
+                    if (user != null)
+                    {
+                        var claims = new[]
+                        {
+                            new Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email, user.Email),
+                            new Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti, user.Id)
+                        };
+
+                        var keyBytes = Encoding.UTF8.GetBytes(key);
+                        var theKey = new SymmetricSecurityKey(keyBytes);
+                        var creds = new SigningCredentials(theKey, SecurityAlgorithms.HmacSha256);
+                        var token = new JwtSecurityToken(issuer, audience, claims, expires: DateTime.Now.AddMinutes(30), signingCredentials: creds);
+
+                        return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+                    }
+                }
+            }
+
+            return BadRequest();
         }
 
         [HttpGet]
